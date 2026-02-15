@@ -5,7 +5,7 @@ from datetime import datetime
 from flask import Flask
 from threading import Thread
 
-# ---------- Keep Alive ----------
+# ---------- Keep Alive для Railway ----------
 app = Flask('')
 
 @app.route('/')
@@ -19,11 +19,11 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-keep_alive()
+keep_alive()  # запускаем параллельно с ботом
 
 # ---------- Переменные окружения ----------
-TOKEN = os.getenv("7958310858:AAFPV0y-ZFnkwUUr0l_MIppQqgYDy8iHuJI")          # Токен бота от @BotFather
-CHAT_ID = os.getenv("-1003811886259")          # Числовой ID канала (например -1001234567890)
+TOKEN = os.getenv("BOT_TOKEN")          # Токен бота от @BotFather
+CHAT_ID = os.getenv("CHAT_ID")          # Числовой ID канала, например -1003811886259
 API_KEY_ALERTS = os.getenv("ALERT_API_KEY")  # Ключ alerts.in.ua (можно оставить пустым для теста)
 
 last_status = None
@@ -41,14 +41,13 @@ def send_message(text):
     except Exception as e:
         print("Ошибка при отправке сообщения:", e)
 
-# ---------- Тест подключения к каналу ----------
+# ---------- Тестовое сообщение при старте ----------
 def test_telegram():
-    test_text = "✅ Тест подключения бота к каналу"
-    send_message(test_text)
+    send_message("✅ Тест подключения бота к каналу")
 
 test_telegram()  # Выполнится один раз при старте
 
-# ---------- Функция получения статуса тревоги ----------
+# ---------- Получение статуса тревоги (тестовый режим) ----------
 def get_alert_status():
     if not API_KEY_ALERTS:
         # --- Тестовый режим без API ключа ---

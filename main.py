@@ -23,7 +23,7 @@ keep_alive()
 
 # ---------- Переменные окружения ----------
 TOKEN = os.getenv("7958310858:AAFPV0y-ZFnkwUUr0l_MIppQqgYDy8iHuJI")          # Токен бота от @BotFather
-CHAT_ID = os.getenv("@alarmradar")          # ID чата или канала
+CHAT_ID = os.getenv("-1003811886259")          # Числовой ID канала (например -1001234567890)
 API_KEY_ALERTS = os.getenv("ALERT_API_KEY")  # Ключ alerts.in.ua (можно оставить пустым для теста)
 
 last_status = None
@@ -31,8 +31,24 @@ daily_alerts = []
 last_daily_report = datetime.now().date()
 last_alert_start = None
 
+# ---------- Функция отправки сообщений ----------
+def send_message(text):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
+    try:
+        resp = requests.post(url, data=payload)
+        print("Telegram response:", resp.text)
+    except Exception as e:
+        print("Ошибка при отправке сообщения:", e)
+
+# ---------- Тест подключения к каналу ----------
+def test_telegram():
+    test_text = "✅ Тест подключения бота к каналу"
+    send_message(test_text)
+
+test_telegram()  # Выполнится один раз при старте
+
 # ---------- Функция получения статуса тревоги ----------
-# Если нет API ключа, используется тестовая заглушка
 def get_alert_status():
     if not API_KEY_ALERTS:
         # --- Тестовый режим без API ключа ---
@@ -45,8 +61,6 @@ def get_alert_status():
         headers = {"Authorization": f"Bearer {API_KEY_ALERTS}"}
         response = requests.get(url, headers=headers)
         data = response.json()
-
-        # Debug: выводим, что пришло от API
         print("DEBUG: API response:", data)
 
         if isinstance(data, list):
@@ -60,7 +74,6 @@ def get_alert_status():
         print("Ошибка при получении статуса тревоги:", e)
         return []
 
-# Счётчик вызовов для тестового режима
 get_alert_status.counter = 0
 
 # ---------- Формирование текста сообщения ----------
@@ -100,18 +113,6 @@ def format_alert_message(alerts, active):
             minutes = int(duration.total_seconds() // 60)
             duration_text = f"⏱ Тривала: {minutes} хвилин\n"
         return f"✅ *Відбій повітряної тривоги*\n📍 Область: Харківська\n🕒 {now_str}\n{duration_text}"
-
-# ---------- Отправка сообщений ----------
-def send_message(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
-    try:
-        requests.post(url, data=payload)
-    except Exception as e:
-        print("Ошибка при отправке сообщения:", e)
-
-# ---------- Тестовое сообщение при старте ----------
-send_message("✅ Бот запущен в тестовом режиме. Telegram работает.")
 
 # ---------- Основной цикл ----------
 while True:

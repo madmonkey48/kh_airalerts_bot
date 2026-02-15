@@ -22,30 +22,46 @@ def keep_alive():
 keep_alive()
 
 # ---------- Переменные окружения ----------
-TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-API_KEY_ALERTS = os.getenv("ALERT_API_KEY")
+TOKEN = os.getenv("7958310858:AAFPV0y-ZFnkwUUr0l_MIppQqgYDy8iHuJI")          # Токен бота от @BotFather
+CHAT_ID = os.getenv("@alarmradar")          # ID чата или канала
+API_KEY_ALERTS = os.getenv("ALERT_API_KEY")  # Ключ alerts.in.ua (можно оставить пустым для теста)
 
 last_status = None
 daily_alerts = []
 last_daily_report = datetime.now().date()
 last_alert_start = None
 
-# ---------- Получение статуса тревоги ----------
+# ---------- Функция получения статуса тревоги ----------
+# Если нет API ключа, используется тестовая заглушка
 def get_alert_status():
+    if not API_KEY_ALERTS:
+        # --- Тестовый режим без API ключа ---
+        get_alert_status.counter += 1
+        if get_alert_status.counter % 5 == 0:
+            return [{"type": "air_raid"}]
+        return []
     try:
         url = "https://api.alerts.in.ua/v1/alerts/active.json"
         headers = {"Authorization": f"Bearer {API_KEY_ALERTS}"}
         response = requests.get(url, headers=headers)
         data = response.json()
 
-        for region in data:
-            if region["regionName"] == "Харківська область":
-                return region["activeAlerts"]
+        # Debug: выводим, что пришло от API
+        print("DEBUG: API response:", data)
+
+        if isinstance(data, list):
+            for region in data:
+                if region.get("regionName") == "Харківська область":
+                    return region.get("activeAlerts", [])
+        else:
+            print("Unexpected API response format")
         return []
     except Exception as e:
         print("Ошибка при получении статуса тревоги:", e)
         return []
+
+# Счётчик вызовов для тестового режима
+get_alert_status.counter = 0
 
 # ---------- Формирование текста сообщения ----------
 def format_alert_message(alerts, active):
@@ -93,6 +109,9 @@ def send_message(text):
         requests.post(url, data=payload)
     except Exception as e:
         print("Ошибка при отправке сообщения:", e)
+
+# ---------- Тестовое сообщение при старте ----------
+send_message("✅ Бот запущен в тестовом режиме. Telegram работает.")
 
 # ---------- Основной цикл ----------
 while True:

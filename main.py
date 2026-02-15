@@ -2,10 +2,11 @@ import os
 import requests
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo  # Python 3.9+
 from flask import Flask
 from threading import Thread
 
-# ---------- Keep Alive для Railway ----------
+# ---------- Keep Alive ----------
 app = Flask('')
 
 @app.route('/')
@@ -19,11 +20,11 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-keep_alive()  # запускаем параллельно с ботом
+keep_alive()
 
 # ---------- Переменные окружения ----------
 TOKEN = os.getenv("BOT_TOKEN")          # Токен бота от @BotFather
-CHAT_ID = os.getenv("CHAT_ID")          # Числовой ID канала, например -1003811886259
+CHAT_ID = os.getenv("CHAT_ID")          # ID канала
 API_KEY_ALERTS = os.getenv("ALERT_API_KEY")  # Ключ alerts.in.ua (можно оставить пустым для теста)
 
 last_status = None
@@ -31,23 +32,30 @@ daily_alerts = []
 last_daily_report = datetime.now().date()
 last_alert_start = None
 
-# ---------- Функция отправки сообщений ----------
-def send_message(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
+# ---------- Отправка сообщений с фото ----------
+def send_message(text, photo_url=None):
     try:
+        if photo_url:
+            url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+            payload = {
+                "chat_id": CHAT_ID,
+                "caption": text,
+                "parse_mode": "Markdown",
+                "photo": photo_url
+            }
+        else:
+            url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+            payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
         resp = requests.post(url, data=payload)
         print("Telegram response:", resp.text)
     except Exception as e:
         print("Ошибка при отправке сообщения:", e)
 
-# ---------- Тестовое сообщение при старте ----------
-def test_telegram():
-    send_message("✅ Тест подключения бота к каналу")
+# ---------- Тестовое сообщение ----------
+send_message("✅ Бот запущен и подключен к каналу", 
+             photo_url="https://raid.fly.dev/map.png")
 
-test_telegram()  # Выполнится один раз при старте
-
-# ---------- Получение статуса тревоги (тестовый режим) ----------
+# ---------- Получение статуса тревоги ----------
 def get_alert_status():
     if not API_KEY_ALERTS:
         # --- Тестовый режим без API ключа ---
@@ -60,14 +68,10 @@ def get_alert_status():
         headers = {"Authorization": f"Bearer {API_KEY_ALERTS}"}
         response = requests.get(url, headers=headers)
         data = response.json()
-        print("DEBUG: API response:", data)
-
         if isinstance(data, list):
             for region in data:
                 if region.get("regionName") == "Харківська область":
                     return region.get("activeAlerts", [])
-        else:
-            print("Unexpected API response format")
         return []
     except Exception as e:
         print("Ошибка при получении статуса тревоги:", e)
@@ -75,30 +79,30 @@ def get_alert_status():
 
 get_alert_status.counter = 0
 
-# ---------- Формирование текста сообщения ----------
+# ---------- Формирование текста с подсветкой ----------
 def format_alert_message(alerts, active):
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Europe/Kiev"))
     now_str = now.strftime("%H:%M")
 
     if active:
         global last_alert_start
         last_alert_start = now
         if not alerts:
-            return f"🚨 *Повітряна тривога!*\n📍 Область: Харківська\n🕒 {now_str}"
+            return f"🚨 *Повітряна тривога!*\n📍 Харківська область\n🕒 {now_str}"
 
         types_text = ""
         for alert in alerts:
             t = alert.get("type")
             if t == "air_raid":
-                types_text += "🚨 *Повітряна тривога*\n"
+                types_text += "🟥 *Повітряна тривога*\n"
             elif t == "artillery":
-                types_text += "💣 *Артилерійська загроза*\n"
+                types_text += "🟧 *Артилерійська загроза*\n"
             elif t == "rocket":
-                types_text += "🔥 *Ракетна загроза*\n"
+                types_text += "🟥🔥 *Ракетна загроза*\n"
             elif t == "street_fighting":
-                types_text += "🛡️ *Вуличні бої*\n"
+                types_text += "🟦 *Вуличні бої*\n"
             elif t == "chemical":
-                types_text += "☣️ *Хімічна загроза*\n"
+                types_text += "🟪 *Хімічна загроза*\n"
             elif t == "nuclear":
                 types_text += "☢️ *Ядерна загроза*\n"
             else:
@@ -111,9 +115,11 @@ def format_alert_message(alerts, active):
             duration = now - last_alert_start
             minutes = int(duration.total_seconds() // 60)
             duration_text = f"⏱ Тривала: {minutes} хвилин\n"
-        return f"✅ *Відбій повітряної тривоги*\n📍 Область: Харківська\n🕒 {now_str}\n{duration_text}"
+        return f"✅ *Відбій*\n📍 Харківська область\n🕒 {now_str}\n{duration_text}"
 
 # ---------- Основной цикл ----------
+MAP_URL = "https://raid.fly.dev/map.png"
+
 while True:
     try:
         alerts = get_alert_status()
@@ -124,16 +130,18 @@ while True:
 
         if current_status != last_status:
             msg = format_alert_message(alerts, current_status)
-            send_message(msg)
+            send_message(msg, photo_url=MAP_URL if current_status else None)
+
             if current_status:
-                daily_alerts.append(datetime.now())
+                daily_alerts.append(datetime.now(ZoneInfo("Europe/Kiev")))
             last_status = current_status
 
         # Ежедневный отчет
-        today = datetime.now().date()
+        today = datetime.now(ZoneInfo("Europe/Kiev")).date()
         if today != last_daily_report:
             count = len(daily_alerts)
-            send_message(f"📊 *Статистика повітряних тривог за день:* {count} тривог")
+            send_message(f"📊 *Статистика повітряних тривог за день:* {count} тривог",
+                         photo_url=MAP_URL)
             daily_alerts = []
             last_daily_report = today
 
